@@ -46,12 +46,15 @@ namespace QCloudAPI_SDK.Module
                     case "SecretId":
                         secretId = config["SecretId"].ToString();
                         break;
+
                     case "SecretKey":
                         secretKey = config["SecretKey"].ToString();
                         break;
+
                     case "DefaultRegion":
                         defaultRegion = config["DefaultRegion"].ToString();
                         break;
+
                     case "RequestMethod":
                         requestMethod = config["RequestMethod"].ToString();
                         break;
@@ -67,19 +70,19 @@ namespace QCloudAPI_SDK.Module
         public string GenerateUrl(string actionName, SortedDictionary<string, object> requestParams)
         {
             actionName = UpperCaseFirst(actionName);
-            if (requestParams == null)
-                requestParams = new SortedDictionary<string, object>();
-            requestParams["Action"] = actionName;
-            if (!requestParams.ContainsKey("Region"))
-            {
-                requestParams["Region"] = defaultRegion;
-            }
+            HookParameters(actionName, requestParams);
             return Request.GenerateUrl(requestParams, secretId, secretKey, requestMethod, serverHost, serverUri);
         }
 
         public string Call(string actionName, SortedDictionary<string, object> requestParams, string fileName = null)
         {
             actionName = UpperCaseFirst(actionName);
+            HookParameters(actionName, requestParams);
+            return Request.Send(requestParams, secretId, secretKey, requestMethod, serverHost, serverUri, fileName);
+        }
+
+        protected virtual void HookParameters(string actionName, SortedDictionary<string, object> requestParams)
+        {
             if (requestParams == null)
                 requestParams = new SortedDictionary<string, object>();
             requestParams["Action"] = actionName;
@@ -87,7 +90,6 @@ namespace QCloudAPI_SDK.Module
             {
                 requestParams["Region"] = defaultRegion;
             }
-            return Request.Send(requestParams, secretId, secretKey, requestMethod, serverHost, serverUri, fileName);
         }
     }
 }
