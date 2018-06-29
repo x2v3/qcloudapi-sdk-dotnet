@@ -14,6 +14,7 @@ namespace QCloudAPI_SDK.Module
         protected string secretKey = "";
         protected string defaultRegion = "";
         protected string requestMethod = "GET";
+        protected List<KeyValuePair<string, string>> additionalHeaders = new List<KeyValuePair<string, string>>();
 
         public string SecretId
         {
@@ -74,11 +75,11 @@ namespace QCloudAPI_SDK.Module
             return Request.GenerateUrl(requestParams, secretId, secretKey, requestMethod, serverHost, serverUri);
         }
 
-        public string Call(string actionName, SortedDictionary<string, object> requestParams, string fileName = null)
+        public virtual string Call(string actionName, SortedDictionary<string, object> requestParams, string fileName = null, string reqMethod = null)
         {
             actionName = UpperCaseFirst(actionName);
             HookParameters(actionName, requestParams);
-            return Request.Send(requestParams, secretId, secretKey, requestMethod, serverHost, serverUri, fileName);
+            return Request.Send(requestParams, secretId, secretKey, string.IsNullOrEmpty(reqMethod) ? requestMethod : reqMethod, serverHost, serverUri, fileName, additionalHeaders);
         }
 
         protected virtual void HookParameters(string actionName, SortedDictionary<string, object> requestParams)

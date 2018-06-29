@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Net;
 using System.IO;
+using System.Net.Http;
 using System.Net.Security;
 using System.Web;
 
@@ -16,7 +17,7 @@ namespace QCloudAPI_SDK.Common
         private static string VERSION = "SDK_DOTNET_1.1";
         private static int timeOut = 10000;//设置连接超时时间，默认10秒，用户可以根据具体需求适当更改timeOut的值
 
-        public static void GetParams(SortedDictionary<string, object> requestParams, string secretId, string secretKey, 
+        public static void GetParams(SortedDictionary<string, object> requestParams, string secretId, string secretKey,
             string requestMethod, string requestHost, string requestPath)
         {
             requestParams.Add("SecretId", secretId);
@@ -37,11 +38,11 @@ namespace QCloudAPI_SDK.Common
             requestParams.Add("Signature", sign);
         }
 
-        public static string GenerateUrl(SortedDictionary<string, object> requestParams, string secretId, string secretKey, 
+        public static string GenerateUrl(SortedDictionary<string, object> requestParams, string secretId, string secretKey,
             string requestMethod, string requestHost, string requestPath)
         {
             GetParams(requestParams, secretId, secretKey, requestMethod, requestHost, requestPath);
-            string url =  "https://" + requestHost + requestPath;
+            string url = "https://" + requestHost + requestPath;
             if (requestMethod == "GET")
             {
                 url += "?" + BuildQuery(requestParams);
@@ -60,13 +61,13 @@ namespace QCloudAPI_SDK.Common
             return paramStr;
         }
 
-        public static string Send(SortedDictionary<string,object> requestParams, string secretId, string secretKey, string requestMethod, String requestHost, String requestPath, String fileName)
+        public static string Send(SortedDictionary<string, object> requestParams, string secretId, string secretKey, string requestMethod, String requestHost, String requestPath, String fileName, List<KeyValuePair<string, string>> additionalHeaders = null)
         {
             if (!requestParams.ContainsKey("SecretId"))
             {
                 requestParams["SecretId"] = secretId;
             }
-            if(!requestParams.ContainsKey("Nonce"))
+            if (!requestParams.ContainsKey("Nonce"))
             {
                 requestParams["Nonce"] = new Random().Next(Int32.MaxValue);
             }
@@ -80,23 +81,23 @@ namespace QCloudAPI_SDK.Common
             requestParams["RequestClient"] = VERSION;
             String plainText = Sign.MakeSignPlainText(requestParams, requestMethod, requestHost, requestPath);
             string SignatureMethod = "HmacSHA1";
-            if (requestParams.ContainsKey("SignatureMethod") && requestParams["SignatureMethod"]=="HmacSHA256")
+            if (requestParams.ContainsKey("SignatureMethod") && requestParams["SignatureMethod"] == "HmacSHA256")
             {
                 SignatureMethod = "HmacSHA256";
             }
             requestParams["Signature"] = Sign.Signature(plainText, secretKey, SignatureMethod);
             string url = "https://" + requestHost + requestPath;
-            return SendRequest(url, requestParams, requestMethod, fileName);
+            return SendRequest(url, requestParams, requestMethod, fileName, additionalHeaders);
         }
 
-        public static string SendRequest(string url, SortedDictionary<string, object> requestParams, string requestMethod, string fileName)
+        public static string SendRequest(string url, SortedDictionary<string, object> requestParams, string requestMethod, string fileName, List<KeyValuePair<string, string>> additionalHeaders = null)
         {
             if (requestMethod == "GET")
             {
                 var paramStr = "";
                 foreach (var key in requestParams.Keys)
                 {
-                    paramStr += string.Format("{0}={1}&", key, HttpUtility.UrlEncode(requestParams[key].ToString())); 
+                    paramStr += string.Format("{0}={1}&", key, HttpUtility.UrlEncode(requestParams[key].ToString()));
                 }
                 paramStr = paramStr.TrimEnd('&');
                 url += (url.EndsWith("?") ? "&" : "?") + paramStr;
@@ -107,18 +108,27 @@ namespace QCloudAPI_SDK.Common
             request.KeepAlive = true;
             request.Timeout = timeOut;
             request.UserAgent = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1;SV1)";
+            if (additionalHeaders != null)
+            {
+                foreach (var header in additionalHeaders)
+                {
+                    request.Headers[header.Key] = header.Value;
+                }
+            }
             if (requestMethod == "POST")
             {
-                var boundary = "---------------" + DateTime.Now.Ticks.ToString("x"); 
-                var beginBoundary = Encoding.ASCII.GetBytes("\r\n--" + boundary + "\r\n"); 
-                var endBoundary = Encoding.ASCII.GetBytes("\r\n--" + boundary + "--\r\n"); 
+                //return PostMultipart(url, requestParams, requestMethod, fileName, additionalHeaders);
+
+                var boundary = "---------------" + DateTime.Now.Ticks.ToString("x");
+                var beginBoundary = Encoding.ASCII.GetBytes("\r\n--" + boundary + "\r\n");
+                var endBoundary = Encoding.ASCII.GetBytes("\r\n--" + boundary + "--\r\n");
                 request.Method = requestMethod;
                 request.ContentType = "multipart/form-data; boundary=" + boundary;
 
                 var memStream = new MemoryStream();
 
                 var strBuf = new StringBuilder();
-                foreach(var key in requestParams.Keys)
+                foreach (var key in requestParams.Keys)
                 {
                     strBuf.Append("\r\n--" + boundary + "\r\n");
                     strBuf.Append("Content-Disposition: form-data; name=\"" + key + "\"\r\n\r\n");
@@ -131,9 +141,9 @@ namespace QCloudAPI_SDK.Common
                 {
                     memStream.Write(beginBoundary, 0, beginBoundary.Length);
                     var fileInfo = new FileInfo(fileName);
-                    var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read); 
-             
-                    const string filePartHeader = 
+                    var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read);
+
+                    const string filePartHeader =
                         "Content-Disposition: form-data; name=\"entityFile\"; filename=\"{0}\"\r\n" +
                         "Content-Type: application/octet-stream\r\n\r\n";
                     var header = string.Format(filePartHeader, fileInfo.Name);
@@ -145,7 +155,7 @@ namespace QCloudAPI_SDK.Common
                     while ((bytesRead = fileStream.Read(buffer, 0, buffer.Length)) != 0)
                     {
                         memStream.Write(buffer, 0, bytesRead);
-                    }  
+                    }
                 }
                 memStream.Write(endBoundary, 0, endBoundary.Length);
                 request.ContentLength = memStream.Length;
@@ -158,7 +168,7 @@ namespace QCloudAPI_SDK.Common
                 memStream.Close();
 
                 requestStream.Write(tempBuffer, 0, tempBuffer.Length);
-                requestStream.Close();  
+                requestStream.Close();
             }
 
             var response = request.GetResponse();
@@ -167,6 +177,35 @@ namespace QCloudAPI_SDK.Common
                 var reader = new StreamReader(s, Encoding.UTF8);
                 return reader.ReadToEnd();
             }
+        }
+
+        public static string PostMultipart(string url, SortedDictionary<string, object> requestParams,
+            string requestMethod, string fileName, List<KeyValuePair<string, string>> additionalHeaders = null)
+        {
+            var client = new HttpClient();
+            FileStream fs = null;
+            var content = new MultipartFormDataContent();
+            client.DefaultRequestHeaders.Add("Accept", "*/*");
+            client.DefaultRequestHeaders.Add("KeepAlive", "true");
+            client.DefaultRequestHeaders.Add("Timeout", timeOut.ToString());
+            client.DefaultRequestHeaders.Add("UserAgent", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1;SV1)");
+            foreach (var header in additionalHeaders)
+            {
+                client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+            }
+            foreach (var key in requestParams.Keys)
+            {
+                content.Add(new StringContent(requestParams[key].ToString(), Encoding.UTF8), key);
+            }
+
+            if (fileName != null)
+            {
+                fs = File.Open(fileName, FileMode.Open);
+                content.Add(new StreamContent(fs));
+            }
+            var task = client.PostAsync(url, content);
+            var resp = task.GetAwaiter().GetResult();
+            return resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
         }
     }
 }

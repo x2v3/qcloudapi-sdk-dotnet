@@ -14,7 +14,7 @@ namespace QCloudAPI_SDK.Common
         ///<param name="signStr">被加密串</param>
         ///<param name="secret">加密密钥</param>
         ///<returns>签名</returns>
-        public static string Signature(string signStr, string secret, string SignatureMethod)
+        public static string Signature(string signStr, string secret, string SignatureMethod = "HmacSHA1")
         {
             if (SignatureMethod == "HmacSHA256")
                 using (HMACSHA256 mac = new HMACSHA256(Encoding.UTF8.GetBytes(secret)))
@@ -48,7 +48,7 @@ namespace QCloudAPI_SDK.Common
             return "?" + retStr.TrimEnd('&');
         }
 
-        public static string MakeSignPlainText(SortedDictionary<string, object> requestParams, string requestMethod = "GET", 
+        public static string MakeSignPlainText(SortedDictionary<string, object> requestParams, string requestMethod = "GET",
             string requestHost = "cvm.api.qcloud.com", string requestPath = "/v2/index.php")
         {
             string retStr = "";
@@ -57,6 +57,14 @@ namespace QCloudAPI_SDK.Common
             retStr += requestPath;
             retStr += BuildParamStr(requestParams);
             return retStr;
+        }
+
+        public static string MakeImageMultiSignPlainText(string appid, string secretId)
+        {
+            var currentTime = DateTime.Now.ToUnixTime();
+            var expireTime = DateTime.Now.AddMinutes(3).ToUnixTime();
+            var rand = new Random();
+            return $"a={appid}&b=&k={secretId}&e={expireTime}&t={currentTime}&r={rand.Next()}&u=0&f=";
         }
     }
 }

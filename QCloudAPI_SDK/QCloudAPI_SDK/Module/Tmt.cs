@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using QCloudAPI_SDK.Common;
 
 namespace QCloudAPI_SDK.Module
 {
