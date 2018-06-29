@@ -92,14 +92,14 @@ namespace QCloudAPI_SDK.Common
 
         public static string SendRequest(string url, SortedDictionary<string, object> requestParams, string requestMethod, string fileName, List<KeyValuePair<string, string>> additionalHeaders = null)
         {
+            var paramStr = "";
+            foreach (var key in requestParams.Keys)
+            {
+                paramStr += string.Format("{0}={1}&", key, HttpUtility.UrlEncode(requestParams[key].ToString()));
+            }
+            paramStr = paramStr.TrimEnd('&');
             if (requestMethod == "GET")
             {
-                var paramStr = "";
-                foreach (var key in requestParams.Keys)
-                {
-                    paramStr += string.Format("{0}={1}&", key, HttpUtility.UrlEncode(requestParams[key].ToString()));
-                }
-                paramStr = paramStr.TrimEnd('&');
                 url += (url.EndsWith("?") ? "&" : "?") + paramStr;
             }
 
@@ -118,57 +118,69 @@ namespace QCloudAPI_SDK.Common
             if (requestMethod == "POST")
             {
                 //return PostMultipart(url, requestParams, requestMethod, fileName, additionalHeaders);
-
-                var boundary = "---------------" + DateTime.Now.Ticks.ToString("x");
-                var beginBoundary = Encoding.ASCII.GetBytes("\r\n--" + boundary + "\r\n");
-                var endBoundary = Encoding.ASCII.GetBytes("\r\n--" + boundary + "--\r\n");
                 request.Method = requestMethod;
-                request.ContentType = "multipart/form-data; boundary=" + boundary;
-
-                var memStream = new MemoryStream();
-
-                var strBuf = new StringBuilder();
-                foreach (var key in requestParams.Keys)
+                request.ContentType = "application/x-www-form-urlencoded";
+                using (var ms = new MemoryStream())
                 {
-                    strBuf.Append("\r\n--" + boundary + "\r\n");
-                    strBuf.Append("Content-Disposition: form-data; name=\"" + key + "\"\r\n\r\n");
-                    strBuf.Append(requestParams[key].ToString());
+                    var paramsByte = Encoding.GetEncoding("utf-8").GetBytes(paramStr);
+                    ms.Write(paramsByte, 0, paramsByte.Length);
+                    request.ContentLength = ms.Length;
+                    var reqStream = request.GetRequestStream();
+                    var buff = ms.ToArray();
+                    reqStream.Write(buff, 0, buff.Length);
+                    reqStream.Close();
                 }
-                var paramsByte = Encoding.GetEncoding("utf-8").GetBytes(strBuf.ToString());
-                memStream.Write(paramsByte, 0, paramsByte.Length);
 
-                if (fileName != null)
-                {
-                    memStream.Write(beginBoundary, 0, beginBoundary.Length);
-                    var fileInfo = new FileInfo(fileName);
-                    var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read);
+                //var boundary = "---------------" + DateTime.Now.Ticks.ToString("x");
+                //var beginBoundary = Encoding.ASCII.GetBytes("\r\n--" + boundary + "\r\n");
+                //var endBoundary = Encoding.ASCII.GetBytes("\r\n--" + boundary + "--\r\n");
+                //request.Method = requestMethod;
+                //request.ContentType = "multipart/form-data; boundary=" + boundary;
 
-                    const string filePartHeader =
-                        "Content-Disposition: form-data; name=\"entityFile\"; filename=\"{0}\"\r\n" +
-                        "Content-Type: application/octet-stream\r\n\r\n";
-                    var header = string.Format(filePartHeader, fileInfo.Name);
-                    var headerbytes = Encoding.UTF8.GetBytes(header);
-                    memStream.Write(headerbytes, 0, headerbytes.Length);
+                //var memStream = new MemoryStream();
 
-                    var buffer = new byte[1024];
-                    int bytesRead;
-                    while ((bytesRead = fileStream.Read(buffer, 0, buffer.Length)) != 0)
-                    {
-                        memStream.Write(buffer, 0, bytesRead);
-                    }
-                }
-                memStream.Write(endBoundary, 0, endBoundary.Length);
-                request.ContentLength = memStream.Length;
+                //var strBuf = new StringBuilder();
+                //foreach (var key in requestParams.Keys)
+                //{
+                //    strBuf.Append("\r\n--" + boundary + "\r\n");
+                //    strBuf.Append("Content-Disposition: form-data; name=\"" + key + "\"\r\n\r\n");
+                //    strBuf.Append(requestParams[key].ToString());
+                //}
+                //var paramsByte = Encoding.GetEncoding("utf-8").GetBytes(strBuf.ToString());
+                //memStream.Write(paramsByte, 0, paramsByte.Length);
 
-                var requestStream = request.GetRequestStream();
+                //if (fileName != null)
+                //{
+                //    memStream.Write(beginBoundary, 0, beginBoundary.Length);
+                //    var fileInfo = new FileInfo(fileName);
+                //    var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read);
 
-                memStream.Position = 0;
-                var tempBuffer = new byte[memStream.Length];
-                memStream.Read(tempBuffer, 0, tempBuffer.Length);
-                memStream.Close();
+                //    const string filePartHeader =
+                //        "Content-Disposition: form-data; name=\"entityFile\"; filename=\"{0}\"\r\n" +
+                //        "Content-Type: application/octet-stream\r\n\r\n";
+                //    var header = string.Format(filePartHeader, fileInfo.Name);
+                //    var headerbytes = Encoding.UTF8.GetBytes(header);
+                //    memStream.Write(headerbytes, 0, headerbytes.Length);
 
-                requestStream.Write(tempBuffer, 0, tempBuffer.Length);
-                requestStream.Close();
+                //    var buffer = new byte[1024];
+                //    int bytesRead;
+                //    while ((bytesRead = fileStream.Read(buffer, 0, buffer.Length)) != 0)
+                //    {
+                //        memStream.Write(buffer, 0, bytesRead);
+                //    }
+                //}
+                //memStream.Write(endBoundary, 0, endBoundary.Length);
+                //request.ContentLength = memStream.Length;
+
+                //var requestStream = request.GetRequestStream();
+
+                //memStream.Position = 0;
+                //var tempBuffer = new byte[memStream.Length];
+                //memStream.Read(tempBuffer, 0, tempBuffer.Length);
+                //memStream.Close();
+
+                //requestStream.Write(tempBuffer, 0, tempBuffer.Length);
+                //requestStream.Close();
             }
 
             var response = request.GetResponse();
@@ -195,7 +207,14 @@ namespace QCloudAPI_SDK.Common
             }
             foreach (var key in requestParams.Keys)
             {
-                content.Add(new StringContent(requestParams[key].ToString(), Encoding.UTF8), key);
+                if (requestParams[key] is byte[])
+                {
+                    content.Add(new ByteArrayContent((byte[])requestParams[key]), key);
+                }
+                else
+                {
+                    content.Add(new StringContent(requestParams[key].ToString(), Encoding.UTF8), key);
+                }
             }
 
             if (fileName != null)
